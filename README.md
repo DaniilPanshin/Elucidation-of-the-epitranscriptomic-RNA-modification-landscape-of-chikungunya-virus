@@ -1,5 +1,9 @@
-Прибор: LTQ Orbitrap XL (MS:1000556)
+HAP1_rRNA_fraction1_rep1.mzML  
+HAP1_rRNA_fraction1_rep2.mzML  
+HAP1_rRNA_fraction1_rep3.mzML  
+HAP1_rRNA_fraction2_rep1.mzML  
+HAP1_rRNA_fraction2_rep2.mzML  
+HAP1_rRNA_fraction2_rep3.mzML
 
-Типы спектров: MS1 (MS:1000579) и MSn (MS:1000580) — есть и MS/MS
 
-Ионизация: наноэлектроспрей (nanoelectrospray)
+<img width="1022" height="540" alt="Снимок экрана 2026-02-15 в 17 25 31" src="https://github.com/user-attachments/assets/9dcdce33-fc81-4a89-b7e5-40f094d81c54" />
