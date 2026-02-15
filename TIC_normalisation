@@ -1,0 +1,49 @@
+import pandas as pd
+import os
+import numpy as np
+
+# -----------------------------
+# Параметры
+# -----------------------------
+input_csv = "/Users/daniil/Desktop/MS_human/features_combined_all_files_top1pct.csv"
+output_csv = "/Users/daniil/Desktop/MS_human/features_normalized_grouped.csv"
+
+mz_tol = 0.01   # допуск по m/z для группировки
+rt_tol = 0.1    # допуск по RT (мин) для группировки
+
+# -----------------------------
+# Загружаем CSV
+# -----------------------------
+df = pd.read_csv(input_csv)
+print(f"Loaded {len(df)} features from CSV")
+
+# -----------------------------
+# 1. TIC нормализация по файлам
+# -----------------------------
+df['intensity_norm'] = df.groupby('file')['intensity'].transform(lambda x: x / x.sum())
+print("TIC normalization done.")
+
+# -----------------------------
+# 2. Группировка по m/z и RT (с учетом tol)
+# -----------------------------
+df['mz_round'] = df['mz'].round(4)
+df['rt_round'] = df['rt'].round(2)
+
+grouped = df.groupby(['mz_round', 'rt_round']).agg({
+    'intensity_norm': 'mean',            # усреднение нормированных интенсивностей
+    'file': lambda x: ";".join(sorted(x.unique())),  # список файлов, где есть пик
+}).reset_index()
+
+# Добавляем количество реплик
+grouped['n_replicates'] = grouped['file'].apply(lambda x: len(x.split(';')))
+
+# Переименовываем колонки для удобства
+grouped.rename(columns={'mz_round':'mz', 'rt_round':'rt', 'intensity_norm':'intensity'}, inplace=True)
+
+# -----------------------------
+# 3. Сохраняем CSV
+# -----------------------------
+grouped.to_csv(output_csv, index=False)
+print(f"Normalized and grouped CSV saved: {output_csv}")
+print(f"Total grouped features: {len(grouped)}")
+grouped.head()
