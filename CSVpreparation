@@ -1,0 +1,118 @@
+import pymzml
+import numpy as np
+import pandas as pd
+import os
+import matplotlib.pyplot as plt
+
+# -----------------------------
+# Параметры
+# -----------------------------
+data_dir = "/Users/daniil/Desktop/MS_human"  # папка с mzML файлами
+output_csv = os.path.join(data_dir, "features_combined_all_files_top1pct.csv")
+
+mz_tol = 0.01
+rt_tol = 0.1
+top_percentile = 99  # верхние 1% интенсивности
+
+# -----------------------------
+# Сбор всех mzML файлов в папке
+# -----------------------------
+files = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith(".mzML")]
+if len(files) == 0:
+    raise FileNotFoundError(f"Не найдено ни одного mzML файла в папке {data_dir}")
+
+print(f"Found {len(files)} mzML files.")
+
+# -----------------------------
+# 1. Feature detection (ускоренный)
+# -----------------------------
+all_mz, all_int, all_rt, all_file = [], [], [], []
+
+for f in files:
+    print(f"\nProcessing {os.path.basename(f)}")
+    run = pymzml.run.Reader(f)
+    
+    for spec in run:
+        if spec.ms_level != 1:
+            continue
+        
+        peaks = np.array(spec.peaks("centroided"))
+        if peaks.size == 0:
+            continue
+        
+        mzs = peaks[:,0]
+        intensities = peaks[:,1]
+        
+        # Фильтр верхнего 1% по интенсивности
+        threshold = np.percentile(intensities, top_percentile)
+        mask = intensities >= threshold
+        if not np.any(mask):
+            continue
+        
+        all_mz.append(mzs[mask])
+        all_int.append(intensities[mask])
+        all_rt.append(np.full(np.sum(mask), spec.scan_time_in_minutes()))
+        all_file.append(np.full(np.sum(mask), os.path.basename(f)))
+
+# -----------------------------
+# Проверка наличия пиков
+# -----------------------------
+if len(all_mz) == 0:
+    raise ValueError("No features detected! Попробуй снизить top_percentile.")
+
+mz = np.concatenate(all_mz)
+inten = np.concatenate(all_int)
+rt = np.concatenate(all_rt)
+file_arr = np.concatenate(all_file)
+
+df = pd.DataFrame({
+    "mz": mz,
+    "intensity": inten,
+    "rt": rt,
+    "file": file_arr
+})
+
+print(f"Total features after top 1% filtering: {len(df)}")
+df.head()
+
+# -----------------------------
+# 2. Быстрая группировка через pandas
+# -----------------------------
+df_grouped = df.groupby([df['mz'].round(4), df['rt'].round(2)]).agg({
+    'intensity': 'sum',
+    'file': lambda x: ";".join(x.unique())
+}).reset_index()
+
+print(f"Grouped features: {len(df_grouped)}")
+df_grouped.head()
+
+# -----------------------------
+# 3. Экспорт CSV
+# -----------------------------
+df_grouped.to_csv(output_csv, index=False)
+print(f"CSV saved: {output_csv}")
+
+# -----------------------------
+# 4. TIC визуализация для всех файлов
+# -----------------------------
+plt.figure(figsize=(12,6))
+for f in files:
+    run = pymzml.run.Reader(f)
+    rt_list, intensity_list = [], []
+
+    for spec in run:
+        if spec.ms_level != 1:
+            continue
+        peaks = np.array(spec.peaks("centroided"))
+        if peaks.size == 0:
+            continue
+        rt_list.append(spec.scan_time_in_minutes())
+        intensity_list.append(np.sum(peaks[:,1]))
+    
+    plt.plot(rt_list, intensity_list, label=os.path.basename(f))
+
+plt.xlabel("Retention time (min)")
+plt.ylabel("Total Ion Current")
+plt.title("TIC for all files")
+plt.legend()
+plt.show()
